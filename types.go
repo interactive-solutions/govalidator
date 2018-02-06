@@ -7,15 +7,39 @@ import (
 	"sync"
 )
 
+// WrapOldValidatorSignature takes an old validator signature and
+// wraps it so it can be used with the new signature
+func WrapOldValidatorSignature(f func(value string) bool, errKey, errMessage string) Validator {
+	return func(ctx context.Context, value string) (bool, map[string]string, error) {
+		if valid := f(value); valid {
+			return true, nil, nil
+		}
+
+		return false, map[string]string{errKey: errMessage}, nil
+	}
+}
+
+// WrapOldParamValidatorSignature takes an old param validator signature and
+// wraps it so it can be used with the new signature
+func WrapeOldParamValidatorSignature(f func(str string, params ...string) bool, errKey, errMessage string) ParamValidator {
+	return func(ctx context.Context, value string, params ...string) (bool, map[string]string, error) {
+		if valid := f(value); valid {
+			return true, nil, nil
+		}
+
+		return false, map[string]string{errKey: errMessage}, nil
+	}
+}
+
 // Validator is a wrapper for a validator function that returns bool and accepts string.
-type Validator func(ctx context.Context, value string) bool
+type Validator func(ctx context.Context, value string) (bool, map[string]string, error)
 
 // CustomTypeValidator is a wrapper for validator functions that returns bool and accepts any type.
 // The second parameter should be the context (in the case of validating a struct: the whole object being validated).
 type CustomTypeValidator func(ctx context.Context, i interface{}, o interface{}) (bool, map[string]string, error)
 
 // ParamValidator is a wrapper for validator functions that accepts additional parameters.
-type ParamValidator func(ctx context.Context, str string, params ...string) bool
+type ParamValidator func(ctx context.Context, str string, params ...string) (bool, map[string]string, error)
 type tagOptionsMap map[string]string
 
 // UnsupportedTypeError is a wrapper for reflect.Type
@@ -29,13 +53,13 @@ type stringValues []reflect.Value
 
 // ParamTagMap is a map of functions accept variants parameters
 var ParamTagMap = map[string]ParamValidator{
-	"length":       ByteLength,
-	"range":        Range,
-	"runelength":   RuneLength,
-	"stringlength": StringLength,
-	"matches":      StringMatches,
-	"in":           isInRaw,
-	"rsapub":       IsRsaPub,
+	"length":       WrapeOldParamValidatorSignature(ByteLength, "length", "Not valid"),
+	"range":        WrapeOldParamValidatorSignature(Range, "range", "Not valid"),
+	"runelength":   WrapeOldParamValidatorSignature(RuneLength, "runelength", "Not valid"),
+	"stringlength": WrapeOldParamValidatorSignature(StringLength, "stringlength", "Not valid"),
+	"matches":      WrapeOldParamValidatorSignature(StringMatches, "matches", "Not valid"),
+	"in":           WrapeOldParamValidatorSignature(isInRaw, "in", "Not valid"),
+	"rsapub":       WrapeOldParamValidatorSignature(IsRsaPub, "rsapub", "Not valid"),
 }
 
 // ParamTagRegexMap maps param tags to their respective regexes.
@@ -75,58 +99,58 @@ var CustomTypeTagMap = &customTypeTagMap{validators: make(map[string]CustomTypeV
 
 // TagMap is a map of functions, that can be used as tags for ValidateStruct function.
 var TagMap = map[string]Validator{
-	"email":              IsEmail,
-	"url":                IsURL,
-	"dialstring":         IsDialString,
-	"requrl":             IsRequestURL,
-	"requri":             IsRequestURI,
-	"alpha":              IsAlpha,
-	"utfletter":          IsUTFLetter,
-	"alphanum":           IsAlphanumeric,
-	"utfletternum":       IsUTFLetterNumeric,
-	"numeric":            IsNumeric,
-	"utfnumeric":         IsUTFNumeric,
-	"utfdigit":           IsUTFDigit,
-	"hexadecimal":        IsHexadecimal,
-	"hexcolor":           IsHexcolor,
-	"rgbcolor":           IsRGBcolor,
-	"lowercase":          IsLowerCase,
-	"uppercase":          IsUpperCase,
-	"int":                IsInt,
-	"float":              IsFloat,
-	"null":               IsNull,
-	"uuid":               IsUUID,
-	"uuidv3":             IsUUIDv3,
-	"uuidv4":             IsUUIDv4,
-	"uuidv5":             IsUUIDv5,
-	"creditcard":         IsCreditCard,
-	"isbn10":             IsISBN10,
-	"isbn13":             IsISBN13,
-	"json":               IsJSON,
-	"multibyte":          IsMultibyte,
-	"ascii":              IsASCII,
-	"printableascii":     IsPrintableASCII,
-	"fullwidth":          IsFullWidth,
-	"halfwidth":          IsHalfWidth,
-	"variablewidth":      IsVariableWidth,
-	"base64":             IsBase64,
-	"datauri":            IsDataURI,
-	"ip":                 IsIP,
-	"port":               IsPort,
-	"ipv4":               IsIPv4,
-	"ipv6":               IsIPv6,
-	"dns":                IsDNSName,
-	"host":               IsHost,
-	"mac":                IsMAC,
-	"latitude":           IsLatitude,
-	"longitude":          IsLongitude,
-	"ssn":                IsSSN,
-	"semver":             IsSemver,
-	"rfc3339":            IsRFC3339,
-	"rfc3339WithoutZone": IsRFC3339WithoutZone,
-	"ISO3166Alpha2":      IsISO3166Alpha2,
-	"ISO3166Alpha3":      IsISO3166Alpha3,
-	"ISO4217":            IsISO4217,
+	"email":              WrapOldValidatorSignature(IsEmail, "email", "Not valid"),
+	"url":                WrapOldValidatorSignature(IsURL, "url", "Not valid"),
+	"dialstring":         WrapOldValidatorSignature(IsDialString, "dialstring", "Not valid"),
+	"requrl":             WrapOldValidatorSignature(IsRequestURL, "requestUrl", "Not valid"),
+	"requri":             WrapOldValidatorSignature(IsRequestURI, "requestUri", "Not valid"),
+	"alpha":              WrapOldValidatorSignature(IsAlpha, "alpha", "Not valid"),
+	"utfletter":          WrapOldValidatorSignature(IsUTFLetter, "alphanum", "Not valid"),
+	"alphanum":           WrapOldValidatorSignature(IsAlphanumeric, "alphanum", "Not valid"),
+	"utfletternum":       WrapOldValidatorSignature(IsUTFLetterNumeric, "utfletternum", "Not valid"),
+	"numeric":            WrapOldValidatorSignature(IsNumeric, "numeric", "Not valid"),
+	"utfnumeric":         WrapOldValidatorSignature(IsUTFNumeric, "utfnumeric", "Not valid"),
+	"utfdigit":           WrapOldValidatorSignature(IsUTFDigit, "utfdigit", "Not valid"),
+	"hexadecimal":        WrapOldValidatorSignature(IsHexadecimal, "hexadecimal", "Not valid"),
+	"hexcolor":           WrapOldValidatorSignature(IsHexcolor, "hexcolor", "Not valid"),
+	"rgbcolor":           WrapOldValidatorSignature(IsRGBcolor, "rgbcolor", "Not valid"),
+	"lowercase":          WrapOldValidatorSignature(IsLowerCase, "lowercase", "Not valid"),
+	"uppercase":          WrapOldValidatorSignature(IsUpperCase, "uppercase", "Not valid"),
+	"int":                WrapOldValidatorSignature(IsInt, "int", "Not valid"),
+	"float":              WrapOldValidatorSignature(IsFloat, "float", "Not valid"),
+	"null":               WrapOldValidatorSignature(IsNull, "null", "Not valid"),
+	"uuid":               WrapOldValidatorSignature(IsUUID, "uuid", "Not valid"),
+	"uuidv3":             WrapOldValidatorSignature(IsUUIDv3, "uuidv3", "Not valid"),
+	"uuidv4":             WrapOldValidatorSignature(IsUUIDv4, "uuidv4", "Not valid"),
+	"uuidv5":             WrapOldValidatorSignature(IsUUIDv5, "uuidv5", "Not valid"),
+	"creditcard":         WrapOldValidatorSignature(IsCreditCard, "creditcard", "Not valid"),
+	"isbn10":             WrapOldValidatorSignature(IsISBN10, "isbn10", "Not valid"),
+	"isbn13":             WrapOldValidatorSignature(IsISBN13, "isbn13", "Not valid"),
+	"json":               WrapOldValidatorSignature(IsJSON, "json", "Not valid"),
+	"multibyte":          WrapOldValidatorSignature(IsMultibyte, "multibyte", "Not valid"),
+	"ascii":              WrapOldValidatorSignature(IsASCII, "ascii", "Not valid"),
+	"printableascii":     WrapOldValidatorSignature(IsPrintableASCII, "printableascii", "Not valid"),
+	"fullwidth":          WrapOldValidatorSignature(IsFullWidth, "fullwidth", "Not valid"),
+	"halfwidth":          WrapOldValidatorSignature(IsHalfWidth, "halfwidth", "Not valid"),
+	"variablewidth":      WrapOldValidatorSignature(IsVariableWidth, "variablewidth", "Not valid"),
+	"base64":             WrapOldValidatorSignature(IsBase64, "base64", "Not valid"),
+	"datauri":            WrapOldValidatorSignature(IsDataURI, "datauri", "Not valid"),
+	"ip":                 WrapOldValidatorSignature(IsIP, "ip", "Not valid"),
+	"port":               WrapOldValidatorSignature(IsPort, "port", "Not valid"),
+	"ipv4":               WrapOldValidatorSignature(IsIPv4, "ipv4", "Not valid"),
+	"ipv6":               WrapOldValidatorSignature(IsIPv6, "ipv6", "Not valid"),
+	"dns":                WrapOldValidatorSignature(IsDNSName, "dns", "Not valid"),
+	"host":               WrapOldValidatorSignature(IsHost, "host", "Not valid"),
+	"mac":                WrapOldValidatorSignature(IsMAC, "mac", "Not valid"),
+	"latitude":           WrapOldValidatorSignature(IsLatitude, "latitude", "Not valid"),
+	"longitude":          WrapOldValidatorSignature(IsLongitude, "longitude", "Not valid"),
+	"ssn":                WrapOldValidatorSignature(IsSSN, "ssh", "Not valid"),
+	"semver":             WrapOldValidatorSignature(IsSemver, "semver", "Not valid"),
+	"rfc3339":            WrapOldValidatorSignature(IsRFC3339, "rfc3339", "Not valid"),
+	"rfc3339WithoutZone": WrapOldValidatorSignature(IsRFC3339WithoutZone, "rfc3339WithoutZone", "Not valid"),
+	"ISO3166Alpha2":      WrapOldValidatorSignature(IsISO3166Alpha2, "ISO3166Alpha2", "Not valid"),
+	"ISO3166Alpha3":      WrapOldValidatorSignature(IsISO3166Alpha3, "ISO3166Alpha3", "Not valid"),
+	"ISO4217":            WrapOldValidatorSignature(IsISO4217, "ISO4217", "Not valid"),
 }
 
 // ISO3166Entry stores country codes
