@@ -675,7 +675,7 @@ func toJSONName(tag string) string {
 
 // ValidateStruct use tags for fields.
 // result will be equal to `false` if there are any errors.
-func ValidateStruct(ctx context.Context, s interface{}) (bool, map[string]map[string]string, error) {
+func ValidateStruct(ctx context.Context, s interface{}) (bool, map[string]interface{}, error) {
 	if s == nil {
 		return true, nil, nil
 	}
@@ -690,7 +690,7 @@ func ValidateStruct(ctx context.Context, s interface{}) (bool, map[string]map[st
 	}
 
 	requestValid := true
-	errorMap := map[string]map[string]string{}
+	errorMap := map[string]interface{}{}
 
 	for i := 0; i < val.NumField(); i++ {
 		valueField := val.Field(i)
@@ -699,13 +699,19 @@ func ValidateStruct(ctx context.Context, s interface{}) (bool, map[string]map[st
 			continue // Private field
 		}
 
+		var valid bool
+		var fieldErrorMap interface{}
+		var err error
+
 		if (valueField.Kind() == reflect.Struct ||
 			(valueField.Kind() == reflect.Ptr && valueField.Elem().Kind() == reflect.Struct)) &&
 			typeField.Tag.Get(tagName) != "-" {
-			return false, nil, errors.New("Nested structs are not supported")
+
+			valid, fieldErrorMap, err = ValidateStruct(ctx, valueField.Interface())
+		} else {
+			valid, fieldErrorMap, err = typeCheck(ctx, valueField, typeField, val, nil)
 		}
 
-		valid, fieldErrorMap, err := typeCheck(ctx, valueField, typeField, val, nil)
 		if err != nil {
 			return false, nil, err
 		}
@@ -907,7 +913,7 @@ func checkRequired(v reflect.Value, t reflect.StructField, options tagOptionsMap
 	return true, nil
 }
 
-func typeCheck(ctx context.Context, v reflect.Value, t reflect.StructField, o reflect.Value, options tagOptionsMap) (bool, map[string]string, error) {
+func typeCheck(ctx context.Context, v reflect.Value, t reflect.StructField, o reflect.Value, options tagOptionsMap) (bool, interface{}, error) {
 	if !v.IsValid() {
 		return false, nil, nil
 	}
@@ -1044,7 +1050,9 @@ func typeCheck(ctx context.Context, v reflect.Value, t reflect.StructField, o re
 				}
 			}
 		}
+
 		return true, nil, nil
+
 	case reflect.Map:
 		if v.Type().Key().Kind() != reflect.String {
 			return false, nil, &UnsupportedTypeError{v.Type()}
@@ -1055,49 +1063,56 @@ func typeCheck(ctx context.Context, v reflect.Value, t reflect.StructField, o re
 		for _, k := range sv {
 			var resultItem bool
 			var err error
-			var errorMap map[string]string
+			var errorMap interface{}
+
 			if v.MapIndex(k).Kind() != reflect.Struct {
 				resultItem, errorMap, err = typeCheck(ctx, v.MapIndex(k), t, o, options)
-				if err != nil {
-					return false, nil, err
-				}
-
-				if !resultItem {
-					return false, errorMap, err
-				}
 			} else {
-				return false, nil, errors.New("Does not support nested structs")
+				resultItem, errorMap, err = ValidateStruct(ctx, v.MapIndex(k))
+			}
+
+			if err != nil {
+				return false, nil, err
+			}
+
+			if !resultItem {
+				return false, errorMap, err
 			}
 		}
 
 		return true, nil, nil
+
 	case reflect.Slice, reflect.Array:
 		for i := 0; i < v.Len(); i++ {
 			var resultItem bool
 			var err error
-			var errorMap map[string]string
+			var errorMap interface{}
+
 			if v.Index(i).Kind() != reflect.Struct {
 				resultItem, errorMap, err = typeCheck(ctx, v.Index(i), t, o, options)
-				if err != nil {
-					return false, nil, err
-				}
-
-				if !resultItem {
-					return false, errorMap, err
-				}
 			} else {
-				return false, nil, errors.New("Does not support nested structs")
+				resultItem, errorMap, err = ValidateStruct(ctx, v.Index(i))
+			}
+
+			if err != nil {
+				return false, nil, err
+			}
+
+			if !resultItem {
+				return false, errorMap, err
 			}
 		}
 
 		return true, nil, nil
+
 	case reflect.Interface:
 		// If the value is an interface then encode its element
 		if v.IsNil() {
 			return true, nil, nil
 		}
 
-		return false, nil, errors.New("Does not support nested structs")
+		return ValidateStruct(ctx, v.Interface())
+
 	case reflect.Ptr:
 		// If the value is a pointer then check its element
 		if v.IsNil() {
@@ -1105,10 +1120,13 @@ func typeCheck(ctx context.Context, v reflect.Value, t reflect.StructField, o re
 		}
 
 		return typeCheck(ctx, v.Elem(), t, o, options)
+
 	case reflect.Struct:
-		return false, nil, errors.New("Does not support nested structs")
+		return ValidateStruct(ctx, v.Interface())
+
 	default:
 		return false, nil, &UnsupportedTypeError{v.Type()}
+
 	}
 }
 
