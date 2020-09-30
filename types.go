@@ -23,7 +23,7 @@ func WrapOldValidatorSignature(f func(value string) bool, errKey, errMessage str
 // wraps it so it can be used with the new signature
 func WrapeOldParamValidatorSignature(f func(str string, params ...string) bool, errKey, errMessage string) ParamValidator {
 	return func(ctx context.Context, value string, params ...string) (bool, map[string]string, error) {
-		if valid := f(value); valid {
+		if valid := f(value, params...); valid {
 			return true, nil, nil
 		}
 
